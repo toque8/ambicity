@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         });
 
         if (!response.ok) {
-            return res.status(500).json({ error: `Failed to fetch stream: ${response.status}` });
+            return res.status(response.status).json({ error: `Stream responded with status ${response.status}` });
         }
 
         const manifestData = await response.text();
