@@ -11,20 +11,31 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'invalid sourceParams JSON' });
     }
 
-    switch (source) {
-        case 'youtube': {
-            if (!params.videoId) {
-                return res.status(400).json({ error: 'videoId required for youtube source' });
+    if (source !== 'earthcam') {
+        return res.status(400).json({ error: 'unsupported source type' });
+    }
+
+    if (!params.url) {
+        return res.status(400).json({ error: 'url required for earthcam source' });
+    }
+
+    try {
+        const response = await fetch(params.url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.earthcam.com/'
             }
-            return res.status(500).json({ error: 'YouTube source temporarily disabled' });
+        });
+
+        if (!response.ok) {
+            return res.status(500).json({ error: `Failed to fetch stream: ${response.status}` });
         }
-        case 'hls': {
-            if (!params.url) {
-                return res.status(400).json({ error: 'url required for hls source' });
-            }
-            return res.status(200).json({ streamUrl: params.url });
-        }
-        default:
-            return res.status(400).json({ error: 'unsupported source type' });
+
+        const manifestData = await response.text();
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.status(200).send(manifestData);
+    } catch (err) {
+        console.error('Error fetching stream:', err);
+        res.status(500).json({ error: err.message || 'Internal server error' });
     }
 }
