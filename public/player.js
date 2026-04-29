@@ -37,13 +37,12 @@
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       const hls = new Hls();
-      const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
-      hls.loadSource(apiUrl);
+      hls.loadSource(camera.sourceParams.url);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
       video._hls = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
+      video.src = camera.sourceParams.url;
       video.play();
     }
   }
