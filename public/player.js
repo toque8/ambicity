@@ -34,20 +34,17 @@
     container.appendChild(video);
     currentVideo = video;
 
-    if (camera.source === 'hls' && camera.sourceParams.url) {
-      const Hls = window.Hls;
-      if (Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(camera.sourceParams.url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-        video._hls = hls;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = camera.sourceParams.url;
-        video.play();
-      }
+    const Hls = window.Hls;
+    if (Hls && Hls.isSupported()) {
+      const hls = new Hls();
+      const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
+      hls.loadSource(apiUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      video._hls = hls;
     } else {
-      title.textContent += ' (source not supported)';
+      video.src = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
+      video.play();
     }
   }
 
