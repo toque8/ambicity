@@ -1,5 +1,3 @@
-import ytdl from 'ytdl-core';
-
 export default async function handler(req, res) {
     const { source, sourceParams } = req.query;
     if (!source || !sourceParams) {
@@ -13,35 +11,20 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'invalid sourceParams JSON' });
     }
 
-    if (source !== 'youtube') {
-        return res.status(400).json({ error: 'unsupported source type' });
-    }
-
-    if (!params.videoId) {
-        return res.status(400).json({ error: 'videoId required' });
-    }
-
-    try {
-        const videoUrl = `https://www.youtube.com/watch?v=${params.videoId}`;
-        const info = await ytdl.getInfo(videoUrl);
-
-        const format = info.formats.find(f => f.isLive && f.isHLS);
-        if (!format || !format.url) {
-            return res.status(404).json({ error: 'HLS manifest not found (maybe not live)' });
-        }
-
-        const manifestResponse = await fetch(format.url, {
-            headers: {
-                'Referer': 'https://www.youtube.com/',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    switch (source) {
+        case 'youtube': {
+            if (!params.videoId) {
+                return res.status(400).json({ error: 'videoId required for youtube source' });
             }
-        });
-        const manifestData = await manifestResponse.text();
-
-        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-        res.status(200).send(manifestData);
-    } catch (err) {
-        console.error('Error fetching stream:', err);
-        res.status(500).json({ error: err.message || 'Internal server error' });
+            return res.status(500).json({ error: 'YouTube source temporarily disabled' });
+        }
+        case 'hls': {
+            if (!params.url) {
+                return res.status(400).json({ error: 'url required for hls source' });
+            }
+            return res.status(200).json({ streamUrl: params.url });
+        }
+        default:
+            return res.status(400).json({ error: 'unsupported source type' });
     }
 }
