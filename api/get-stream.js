@@ -1,4 +1,4 @@
-﻿export default async function handler(req, res) {
+export default async function handler(req, res) {
   const { source, sourceParams } = req.query;
   if (!source || !sourceParams) {
     return res.status(400).json({ error: 'source and sourceParams required' });
@@ -19,12 +19,14 @@
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
         });
         const html = await videoPage.text();
+
         // Ищем hlsManifestUrl в объекте ytInitialPlayerResponse
         const match = html.match(/hlsManifestUrl\\?":\\?"([^"\\]+)/);
         if (!match) {
           return res.status(500).json({ error: 'Could not extract HLS manifest from YouTube page' });
         }
         const hlsUrl = match[1].replace(/\\\//g, '/');
+
         // Проксируем HLS-плейлист с нужным Referer
         const manifestRes = await fetch(hlsUrl, {
           headers: { 'Referer': 'https://www.youtube.com/' }
