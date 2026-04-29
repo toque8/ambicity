@@ -1,5 +1,6 @@
 {
   "name": "ambicity",
+  "type": "module",
   "version": "1.0.0",
   "scripts": {
     "build": "echo 'No build needed'"
