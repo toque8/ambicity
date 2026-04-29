@@ -1,0 +1,11 @@
+[
+  {
+    "id": "times-square",
+    "city": "Times Square, NYC",
+    "source": "earthcam",
+    "sourceParams": {
+      "url": "https://video3.earthcam.com/fecnetwork/4017timessquare.flv/playlist.m3u8"
+    },
+    "thumbnail": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80"
+  }
+]
