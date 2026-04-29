@@ -2,16 +2,9 @@
   {
     "id": "times-square",
     "city": "Times Square, NYC",
-    "source": "hls",
+    "source": "earthcam",
     "sourceParams": {
-      "urls": [
-        "https://s53.webcamtaxi.com/m3u8/timesquare.m3u8",
-        "https://s52.webcamtaxi.com/m3u8/timesquare.m3u8",
-        "https://s51.webcamtaxi.com/m3u8/timesquare.m3u8",
-        "https://s50.webcamtaxi.com/m3u8/timesquare.m3u8",
-        "https://video3.earthcam.com/fecnetwork/4017timessquare.flv/playlist.m3u8",
-        "https://video3.earthcam.com/fecnetwork/9974.flv/playlist.m3u8"
-      ]
+      "url": "https://video3.earthcam.com/fecnetwork/4017timessquare.flv/playlist.m3u8"
     },
     "thumbnail": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80"
   }
