@@ -4,5 +4,7 @@
   "scripts": {
     "build": "echo 'No build needed'"
   },
-  "dependencies": {}
+  "dependencies": {
+    "ytdl-core": "^4.11.5"
+  }
 }
