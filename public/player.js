@@ -2,10 +2,9 @@
   const select = document.getElementById('city-select');
   const container = document.getElementById('player-container');
   const title = document.getElementById('city-title');
-  let currentPlayer = null;
+  let currentVideo = null;
 
   const streams = await fetch('/streams.json').then(r => r.json());
-
   streams.forEach((camera, index) => {
     const option = document.createElement('option');
     option.value = index;
@@ -14,12 +13,10 @@
   });
 
   function cleanup() {
-    if (currentPlayer) {
-      if (currentPlayer._hls) {
-        currentPlayer._hls.destroy();
-      }
-      currentPlayer.remove();
-      currentPlayer = null;
+    if (currentVideo) {
+      if (currentVideo._hls) currentVideo._hls.destroy();
+      currentVideo.remove();
+      currentVideo = null;
     }
   }
 
@@ -35,7 +32,7 @@
     video.style.height = '100%';
     video.style.objectFit = 'cover';
     container.appendChild(video);
-    currentPlayer = video;
+    currentVideo = video;
 
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
@@ -43,15 +40,11 @@
       const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
       hls.loadSource(apiUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play();
-      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
       video._hls = hls;
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = apiUrl;
+      video.src = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
       video.play();
-    } else {
-      title.textContent += ' (source not supported)';
     }
   }
 
