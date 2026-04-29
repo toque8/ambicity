@@ -25,13 +25,11 @@ export default async function handler(req, res) {
         const videoUrl = `https://www.youtube.com/watch?v=${params.videoId}`;
         const info = await ytdl.getInfo(videoUrl);
 
-        // Ищем HLS-манифест (он есть у живых трансляций)
         const format = info.formats.find(f => f.isLive && f.isHLS);
         if (!format || !format.url) {
             return res.status(404).json({ error: 'HLS manifest not found (maybe not live)' });
         }
 
-        // Проксируем манифест через наш API, чтобы избежать CORS
         const manifestResponse = await fetch(format.url, {
             headers: {
                 'Referer': 'https://www.youtube.com/',
