@@ -67,22 +67,22 @@
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
         enableWorker: true,
+        lowLatencyMode: false,
         liveDurationInfinity: true,
         
-        liveSyncDuration: 30,
-        liveMaxLatencyDuration: 45,
-        liveSyncOnStalledError: false, 
-        
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 150 * 1000 * 1000,
+        liveSyncDuration: 15,
+        liveMaxLatencyDuration: 30,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 40,
+        maxBufferSize: 120 * 1000 * 1000,
         backBufferLength: 30,
         
         nudgeOffset: 0.1,
         nudgeMaxRetry: 2,
-        maxBufferHole: 2.0,
+        maxBufferHole: 1.5,
+        maxAudioFramesDrift: 5,          
+        forceKeyFrameOnDemuxerError: true, 
         
-        lowLatencyMode: false,
         testBandwidth: false,
         capLevelToPlayerSize: false,
         preferManagedMediaSource: false,
@@ -91,8 +91,8 @@
         
         fragLoadingMaxRetry: 10,
         fragLoadingRetryDelay: 500,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingMaxRetry: 4
+        manifestLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3
       });
       
       currentHls.loadSource(apiUrl);
