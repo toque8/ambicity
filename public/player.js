@@ -6,7 +6,8 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
-  let audioSyncInterval = null;
+  let syncLock = null;
+  let audioPreload = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -60,7 +61,8 @@
     });
 
   function cleanup() {
-    if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
+    if (syncLock) { clearInterval(syncLock); syncLock = null; }
+    if (audioPreload) { audioPreload = null; }
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -74,6 +76,45 @@
     container.classList.remove('playing');
     title.style.opacity = '1';
     updateControls();
+  }
+
+  function startSoftSync(video) {
+    if (syncLock) clearInterval(syncLock);
+    syncLock = setInterval(() => {
+      if (!video || video.paused || video.readyState < 3) return;
+      const buf = video.buffered;
+      if (buf.length === 0) return;
+      
+      const end = buf.end(0);
+      const drift = end - video.currentTime;
+      
+      if (Math.abs(drift) > 0.3 && Math.abs(drift) < 2.0) {
+        const rate = drift > 0 ? 1.003 : 0.997;
+        if (Math.abs(video.playbackRate - 1.0) < 0.02) {
+          video.playbackRate = rate;
+          setTimeout(() => { 
+            if (video && !video.paused) video.playbackRate = 1.0; 
+          }, 400);
+        }
+      }
+    }, 200);
+  }
+
+  async function warmAudioBuffer(hls, video, url) {
+    try {
+      await new Promise(resolve => {
+        const onParsed = () => { hls.off(Hls.Events.MANIFEST_PARSED, onParsed); resolve(); };
+        hls.on(Hls.Events.MANIFEST_PARSED, onParsed);
+      });
+      
+      const levels = hls.levels;
+      if (levels && levels[0] && levels[0].details) {
+        const fragments = levels[0].details.fragments.slice(0, 3);
+        for (const frag of fragments) {
+          fetch(frag.url).catch(()=>{}); // Просто греем соединение, не декодируем
+        }
+      }
+    } catch (e) { /* игнорируем, это оптимизация */ }
   }
 
   function playCamera(index) {
@@ -113,6 +154,7 @@
       container.classList.add('playing');
       title.style.opacity = '0';
       updateControls();
+      setTimeout(() => startSoftSync(video), 2000);
     });
     video.addEventListener('pause', updateControls);
     video.addEventListener('volumechange', updateControls);
@@ -125,31 +167,43 @@
         enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        liveSyncDuration: 18,
-        liveMaxLatencyDuration: 35,
-        maxBufferLength: 25,
-        maxMaxBufferLength: 45,
+        liveSyncDuration: 20,
+        liveMaxLatencyDuration: 40,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 50,
         maxBufferSize: 200 * 1000 * 1000,
         backBufferLength: 30,
+        
         nudgeMaxRetry: 0,
-        maxBufferHole: 0.8,
-        maxAudioFramesDrift: 5,
-        forceKeyFrameOnDemuxerError: true,
+        nudgeOffset: 0,
+        maxBufferHole: 1.0,
+        maxAudioFramesDrift: 10,
+        forceKeyFrameOnDemuxerError: false,
         stretchShortVideoTrack: false,
+        preferManagedMediaSource: false,
+        liveSyncOnStalledError: false,
+        
         testBandwidth: false,
         startLevel: 0,
         maxAutoLevel: 0,
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 5000000,
-        fragLoadingMaxRetry: 8,
-        fragLoadingRetryDelay: 500,
-        manifestLoadingMaxRetry: 3,
-        levelLoadingMaxRetry: 3
+        
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 800,
+        manifestLoadingMaxRetry: 2,
+        levelLoadingMaxRetry: 2
       });
 
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
-      currentHls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
+      
+      warmAudioBuffer(currentHls, video, apiUrl);
+      
+      currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(()=>{});
+      });
+      
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           switch(data.type) {
@@ -159,22 +213,13 @@
           }
         }
       });
-
-      audioSyncInterval = setInterval(() => {
-        if (!video || video.paused || video.readyState < 3) return;
-        const buf = video.buffered;
-        if (buf.length > 0) {
-          const end = buf.end(0);
-          const drift = end - video.currentTime;
-          if (Math.abs(drift) > 1.2) {
-            video.playbackRate = drift > 0 ? 1.015 : 0.985;
-            setTimeout(() => { video.playbackRate = 1.0; }, 2000);
-          }
-        }
-      }, 3000);
+      
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
-      video.addEventListener('loadedmetadata', () => video.play().catch(()=>{}));
+      video.addEventListener('loadedmetadata', () => {
+        video.play().catch(()=>{});
+        setTimeout(() => startSoftSync(video), 2000);
+      });
     }
   }
 
