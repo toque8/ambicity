@@ -123,20 +123,22 @@
         enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        liveSyncDuration: 25,
-        liveMaxLatencyDuration: 45,
-        maxBufferLength: 35,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 250 * 1000 * 1000,
-        backBufferLength: 30,
+        
+        liveSyncDuration: 15,
+        liveMaxLatencyDuration: 30,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 40,
+        maxBufferSize: 150 * 1000 * 1000,
+        backBufferLength: 25,
 
-        nudgeMaxRetry: 0,          
-        maxBufferHole: 2.5,         
-        maxAudioFramesDrift: 12,    
+        nudgeMaxRetry: 2,
+        nudgeOffset: 0.05,
+        maxBufferHole: 0.8,
+        maxAudioFramesDrift: 3,
         forceKeyFrameOnDemuxerError: true,
         stretchShortVideoTrack: false,
         preferManagedMediaSource: false,
-        liveSyncOnStalledError: false, 
+        liveSyncOnStalledError: false,
 
         testBandwidth: false,
         startLevel: 0,
@@ -144,10 +146,10 @@
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 5000000,
 
-        fragLoadingMaxRetry: 12,
+        fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 500,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingMaxRetry: 4
+        manifestLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3
       });
 
       currentHls.loadSource(apiUrl);
@@ -157,7 +159,6 @@
 
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
-          console.error('HLS fatal error:', data);
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR: currentHls.startLoad(); break;
             case Hls.ErrorTypes.MEDIA_ERROR: currentHls.recoverMediaError(); break;
