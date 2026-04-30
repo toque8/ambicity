@@ -66,32 +66,34 @@
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: true,          
-        liveDurationInfinity: true,   
-        liveSyncDuration: 18,        
-        liveMaxLatencyDuration: 35,   
-        maxBufferLength: 20,          
-        maxMaxBufferLength: 40,      
-        maxBufferSize: 120 * 1000 * 1000,
+        enableWorker: true,
+        liveDurationInfinity: true,
         
-        nudgeOffset: 0.08,
-        nudgeMaxRetry: 4,
-        maxBufferHole: 1.5,           
+        liveSyncDuration: 30,
+        liveMaxLatencyDuration: 45,
+        liveSyncOnStalledError: false, 
         
-        fragLoadingMaxRetry: 12,
-        fragLoadingRetryDelay: 400,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingMaxRetry: 4,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 150 * 1000 * 1000,
+        backBufferLength: 30,
         
-        // Отключаем агрессивные оптимизации
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 2,
+        maxBufferHole: 2.0,
+        
         lowLatencyMode: false,
         testBandwidth: false,
-        abrEwmaDefaultEstimate: 5000000,
+        capLevelToPlayerSize: false,
         preferManagedMediaSource: false,
-        stretchShortVideoTrack: false
+        stretchShortVideoTrack: false,
+        abrEwmaDefaultEstimate: 5000000,
+        
+        fragLoadingMaxRetry: 10,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4
       });
-      
-      currentHls.config.audioTrack = 0;
       
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
@@ -101,16 +103,7 @@
           console.log('Autoplay blocked, waiting for user interaction');
         });
       });
-
-      currentHls.on(Hls.Events.LEVEL_SWITCHED, function() {
-        if (video.readyState >= 2) {
-          const bufEnd = video.buffered.length > 0 ? video.buffered.end(0) : 0;
-          if (Math.abs(bufEnd - video.currentTime) > 2) {
-            video.currentTime = Math.max(0, bufEnd - 1.2);
-          }
-        }
-      });
-
+      
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           console.error('HLS fatal error:', data);
@@ -125,16 +118,6 @@
               cleanup();
               title.textContent = camera.city;
           }
-        }
-        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
-          setTimeout(() => {
-            if (!video.paused && video.readyState >= 2) {
-              const bufEnd = video.buffered.length > 0 ? video.buffered.end(0) : 0;
-              if (bufEnd > video.currentTime + 1.5) {
-                video.currentTime = bufEnd - 1.0;
-              }
-            }
-          }, 800);
         }
       });
       
