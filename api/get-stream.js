@@ -1,51 +1,69 @@
-export default async function handler(req, res) {
-    const { source, sourceParams } = req.query;
-    if (!source || !sourceParams) {
-        return res.status(400).json({ error: 'source and sourceParams required' });
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(req) {
+  const { searchParams } = new URL(req.url);
+  const source = searchParams.get('source');
+  const sourceParams = searchParams.get('sourceParams');
+
+  if (!source || !sourceParams) {
+    return new Response(JSON.stringify({ error: 'source and sourceParams required' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  let params;
+  try {
+    params = JSON.parse(sourceParams);
+  } catch {
+    return new Response(JSON.stringify({ error: 'invalid sourceParams JSON' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (source !== 'earthcam-hls' || !params.url) {
+    return new Response(JSON.stringify({ error: 'unsupported source' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    const manifestRes = await fetch(params.url, {
+      headers: {
+        'User-Agent': params.userAgent || 'Mozilla/5.0',
+        'Referer': params.referer || 'https://www.earthcam.com/',
+        'Origin': 'https://www.earthcam.com'
+      }
+    });
+
+    if (!manifestRes.ok) {
+      return new Response(JSON.stringify({ error: 'stream unavailable' }), {
+        status: manifestRes.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    let params;
-    try {
-        params = JSON.parse(sourceParams);
-    } catch (e) {
-        return res.status(400).json({ error: 'invalid sourceParams JSON' });
-    }
-
-    if (source !== 'earthcam') {
-        return res.status(400).json({ error: 'unsupported source type' });
-    }
-    if (!params.url) {
-        return res.status(400).json({ error: 'url required for earthcam source' });
-    }
-
-    try {
-        const baseUrl = params.url;
-        // Забираем плейлист с реферером
-        const response = await fetch(baseUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0',
-                'Referer': 'https://www.earthcam.com/'
-            }
-        });
-        if (!response.ok) {
-            return res.status(response.status).json({ error: 'EarthCam stream not available' });
-        }
-        let manifest = await response.text();
-
-        // Переписываем все относительные и абсолютные ссылки на сегменты, чтобы они шли через наш прокси
-        const basePath = baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
-        manifest = manifest.replace(/^([^#].+)$/gm, (line) => {
-            if (line.startsWith('http')) {
-                return `/api/proxy?url=${encodeURIComponent(line)}`;
-            } else {
-                const absoluteUrl = basePath + line;
-                return `/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
-            }
-        });
-
-        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
-        res.status(200).send(manifest);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    const manifestText = await manifestRes.text();
+    
+    return new Response(manifestText, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Stream-Headers': JSON.stringify({
+          referer: params.referer,
+          userAgent: params.userAgent
+        })
+      }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
