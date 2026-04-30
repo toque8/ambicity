@@ -12,35 +12,28 @@ export default async function handler(req) {
     const decodedUrl = decodeURIComponent(segmentUrl);
     const referer = new URL(decodedUrl).origin.replace(/\/$/, '') + '/';
     
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
     const segmentRes = await fetch(decodedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': referer,
-        'Origin': referer
-      },
-      signal: controller.signal
+        'Referer': referer || 'https://www.earthcam.com/',
+        'Origin': referer || 'https://www.earthcam.com'
+      }
     });
-
-    clearTimeout(timeout);
 
     if (!segmentRes.ok) {
       return new Response('Segment unavailable', { status: segmentRes.status });
     }
 
     const contentType = segmentRes.headers.get('Content-Type') || 'video/mp2t';
-    const buffer = await segmentRes.arrayBuffer();
     
-    return new Response(buffer, {
+    return new Response(segmentRes.body, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
+        'Cache-Control': 'no-cache',
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
-        'Content-Length': buffer.byteLength.toString()
+        'Transfer-Encoding': 'chunked'
       }
     });
 
