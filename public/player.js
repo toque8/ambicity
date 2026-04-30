@@ -32,10 +32,9 @@
   function createHlsConfig(authHeaders) {
     return {
       enableWorker: true,
-      lowLatencyMode: true,
+      lowLatencyMode: false,
       backBufferLength: 30,
       xhrSetup: function(xhr, url) {
-        // Добавляем заголовки к каждому запросу (манифест и сегменты)
         if (authHeaders?.referer) {
           xhr.setRequestHeader('Referer', authHeaders.referer);
         }
@@ -52,19 +51,19 @@
     if (!camera) return;
     
     cleanup();
-    title.textContent = `${camera.city} — LIVE`;
+    title.textContent = camera.city + ' — LIVE';
 
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
-    video.setAttribute('muted', ''); // Обязательно для autoplay в браузерах
+    video.setAttribute('muted', '');
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
     container.appendChild(video);
     currentVideo = video;
 
-    const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
+    const apiUrl = '/api/get-stream?source=' + camera.source + '&sourceParams=' + encodeURIComponent(JSON.stringify(camera.sourceParams));
 
     let authHeaders = null;
     try {
@@ -74,7 +73,7 @@
         authHeaders = JSON.parse(authHeader);
       }
     } catch (e) {
-      console.warn('Could not fetch auth headers, proceeding without:', e);
+      console.warn('Auth headers fetch failed:', e);
     }
 
     const Hls = window.Hls;
@@ -84,11 +83,11 @@
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
       
-      currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(e => console.log('Autoplay blocked:', e));
+      currentHls.on(Hls.Events.MANIFEST_PARSED, function() {
+        video.play().catch(function(e) { console.log('Autoplay blocked:', e); });
       });
       
-      currentHls.on(Hls.Events.ERROR, (event, data) => {
+      currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           console.error('HLS fatal error:', data);
           switch(data.type) {
@@ -100,23 +99,23 @@
               break;
             default:
               cleanup();
-              title.textContent = `${camera.city} — OFFLINE`;
+              title.textContent = camera.city + ' — OFFLINE';
           }
         }
       });
       
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
-      video.addEventListener('loadedmetadata', () => {
-        video.play().catch(e => console.log('Autoplay blocked:', e));
+      video.addEventListener('loadedmetadata', function() {
+        video.play().catch(function(e) { console.log('Autoplay blocked:', e); });
       });
     } else {
-      title.textContent = `${camera.city} — UNSUPPORTED`;
-      console.error('HLS not supported in this browser');
+      title.textContent = camera.city + ' — UNSUPPORTED';
+      console.error('HLS not supported');
     }
   }
 
-  select.addEventListener('change', () => playCamera(select.value));
+  select.addEventListener('change', function() { playCamera(select.value); });
   if (streams.length > 0) playCamera(0);
   
   window.addEventListener('beforeunload', cleanup);
