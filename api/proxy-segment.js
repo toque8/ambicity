@@ -1,4 +1,3 @@
-// api/proxy-segment.js
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -11,7 +10,6 @@ export default async function handler(req) {
     }
 
     const decodedUrl = decodeURIComponent(segmentUrl);
-    
     const referer = new URL(decodedUrl).origin.replace(/\/$/, '') + '/';
     
     const segmentRes = await fetch(decodedUrl, {
@@ -27,7 +25,6 @@ export default async function handler(req) {
     }
 
     const contentType = segmentRes.headers.get('Content-Type') || 'video/mp2t';
-    
     const buffer = await segmentRes.arrayBuffer();
     
     return new Response(buffer, {
@@ -35,7 +32,9 @@ export default async function handler(req) {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=30, stale-while-revalidate=10',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Accept-Ranges': 'bytes',
+        'X-Content-Type-Options': 'nosniff'
       }
     });
 
