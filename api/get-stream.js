@@ -29,6 +29,9 @@ export default async function handler(req) {
       });
     }
 
+    const originalUrl = new URL(params.url);
+    const baseUrl = `${originalUrl.protocol}//${originalUrl.hostname}${originalUrl.pathname.substring(0, originalUrl.pathname.lastIndexOf('/') + 1)}`;
+
     const manifestRes = await fetch(params.url, {
       headers: {
         'User-Agent': params.userAgent || 'Mozilla/5.0',
@@ -44,7 +47,14 @@ export default async function handler(req) {
       });
     }
 
-    const manifestText = await manifestRes.text();
+    let manifestText = await manifestRes.text();
+    
+    manifestText = manifestText.split('\n').map(line => {
+      if (line.startsWith('#') || !line.trim()) return line;
+      if (line.startsWith('http://') || line.startsWith('https://')) return line;
+      return baseUrl + line.trim();
+    }).join('\n');
+
     const authData = {
       referer: params.referer || 'https://www.earthcam.com/',
       userAgent: params.userAgent || 'Mozilla/5.0'
@@ -54,7 +64,7 @@ export default async function handler(req) {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
         'X-Stream-Auth': JSON.stringify(authData)
       }
     });
