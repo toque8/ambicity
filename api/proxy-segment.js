@@ -25,16 +25,14 @@ export default async function handler(req) {
     }
 
     const contentType = segmentRes.headers.get('Content-Type') || 'video/mp2t';
-    const buffer = await segmentRes.arrayBuffer();
     
-    return new Response(buffer, {
+    return new Response(segmentRes.body, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=30, stale-while-revalidate=10',
+        'Cache-Control': 'no-cache',
         'Access-Control-Allow-Origin': '*',
-        'Accept-Ranges': 'bytes',
-        'X-Content-Type-Options': 'nosniff'
+        'Accept-Ranges': 'bytes'
       }
     });
 
