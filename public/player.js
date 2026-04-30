@@ -38,7 +38,7 @@
     if (!camera) return;
     
     cleanup();
-    title.textContent = camera.city + ' — LIVE';
+    title.textContent = camera.city;
 
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
@@ -50,7 +50,6 @@
     container.appendChild(video);
     currentVideo = video;
 
-    // Оверлей только с кнопкой Play
     const overlay = document.createElement('div');
     overlay.className = 'play-overlay';
     overlay.innerHTML = '<button class="play-btn">Play</button>';
@@ -67,24 +66,23 @@
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: false,          // Отключаем воркер (часто лечит рассинхрон A/V)
-        lowLatencyMode: false,        // Отключаем LL-HLS (нестабилен для кэм)
-        liveSyncDuration: 15,         // Держимся в 15 сек от live-края
-        liveMaxLatencyDuration: 30,   // Макс отставание 30 сек
-        maxBufferLength: 12,          // Небольшой буфер для live
+        enableWorker: true,
+        liveDurationInfinity: true,
+        liveSyncDuration: 10,
+        liveMaxLatencyDuration: 20,
+        maxBufferLength: 12,
         maxMaxBufferLength: 25,
         maxBufferSize: 60 * 1000 * 1000,
-        
-        manifestLoadingMaxRetry: 4,
+        manifestLoadingMaxRetry: 3,
         manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 3,
         fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 500,
-        
-        nudgeOffset: 0.05,
+        nudgeOffset: 0.1,
         nudgeMaxRetry: 3,
-        maxBufferHole: 0.3,
+        maxBufferHole: 0.2,
         startFragPrefetch: true,
+        lowLatencyMode: false,
         testBandwidth: false,
         abrEwmaDefaultEstimate: 5000000
       });
@@ -96,6 +94,16 @@
         video.play().catch(function() {
           console.log('Autoplay blocked, waiting for user interaction');
         });
+      });
+
+      currentHls.on(Hls.Events.FRAG_BUFFERED, function(event, data) {
+        if (data.type === 'audio' && currentVideo && !currentVideo.paused) {
+          const end = currentVideo.buffered.end(0);
+          const cur = currentVideo.currentTime;
+          if (end - cur > 1.5) {
+            currentVideo.currentTime = end - 1.0;
+          }
+        }
       });
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
@@ -110,7 +118,7 @@
               break;
             default:
               cleanup();
-              title.textContent = camera.city + ' — OFFLINE';
+              title.textContent = camera.city;
           }
         }
       });
@@ -121,7 +129,7 @@
         video.play().catch(function(e) { console.log('Autoplay blocked:', e); });
       });
     } else {
-      title.textContent = camera.city + ' — UNSUPPORTED';
+      title.textContent = camera.city;
     }
   }
 
