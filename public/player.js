@@ -70,27 +70,27 @@
         lowLatencyMode: false,
         liveDurationInfinity: true,
         
-        liveSyncDuration: 15,
-        liveMaxLatencyDuration: 30,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        maxBufferSize: 120 * 1000 * 1000,
-        backBufferLength: 30,
+        liveSyncDuration: 25,
+        liveMaxLatencyDuration: 45,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 200 * 1000 * 1000,
         
-        nudgeOffset: 0.1,
-        nudgeMaxRetry: 2,
-        maxBufferHole: 1.5,
-        maxAudioFramesDrift: 5,          
-        forceKeyFrameOnDemuxerError: true, 
+        nudgeMaxRetry: 0,          // Отключаем ручные прыжки currentTime
+        maxBufferHole: 3.0,        // Игнорируем разрывы до 3 сек
+        maxAudioFramesDrift: 10,   // Разрешаем аудио слегка отставать
+        forceKeyFrameOnDemuxerError: true,
         
         testBandwidth: false,
+        startLevel: 0,
+        maxAutoLevel: 0,
         capLevelToPlayerSize: false,
         preferManagedMediaSource: false,
         stretchShortVideoTrack: false,
         abrEwmaDefaultEstimate: 5000000,
         
         fragLoadingMaxRetry: 10,
-        fragLoadingRetryDelay: 500,
+        fragLoadingRetryDelay: 1000,
         manifestLoadingMaxRetry: 3,
         levelLoadingMaxRetry: 3
       });
@@ -118,6 +118,12 @@
               cleanup();
               title.textContent = camera.city;
           }
+        }
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          setTimeout(() => {
+            if (!video.paused) video.pause();
+            setTimeout(() => video.play().catch(()=>{}), 300);
+          }, 1000);
         }
       });
       
