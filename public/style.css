@@ -1,47 +1,79 @@
-body, html {
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  height: 100%;
-  background: #000;
-  overflow: hidden;
-  font-family: system-ui, sans-serif;
 }
-#video {
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: #000;
+  color: #fff;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#player-container {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#player-container video {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
+
 .select-wrapper {
   position: absolute;
   top: 20px;
-  right: 30px;
-  z-index: 10;
+  right: 20px;
+  z-index: 5;
 }
-select {
+
+#city-select {
   padding: 10px 16px;
   font-size: 14px;
-  background: rgba(0,0,0,0.6);
-  color: white;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 6px;
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
   outline: none;
   cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.2s ease;
 }
+
+#city-select:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+#city-select option {
+  background: #1a1a1a;
+  color: #fff;
+}
+
 .city-title {
   position: absolute;
-  bottom: 40px;
-  left: 40px;
-  color: white;
-  font-size: 28px;
-  font-weight: 300;
-  letter-spacing: 2px;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.7);
-  background: rgba(0,0,0,0.4);
-  padding: 12px 24px;
-  backdrop-filter: blur(8px);
-  border-radius: 4px;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+  pointer-events: none;
+  letter-spacing: 0.3px;
 }
+
 .play-overlay {
   position: absolute;
   top: 50%;
@@ -52,15 +84,15 @@ select {
   align-items: center;
   gap: 12px;
   z-index: 10;
-  pointer-events: none; /* Пропускаем клики сквозь контейнер */
+  pointer-events: none;
 }
 
 .play-btn {
-  pointer-events: auto; /* Кнопка кликабельна */
+  pointer-events: auto;
   background: transparent;
   border: none;
   color: #fff;
-  font-family: inherit; /* Наследует шрифт от body / city-title */
+  font-family: inherit;
   font-size: 18px;
   font-weight: 500;
   letter-spacing: 0.5px;
@@ -91,4 +123,23 @@ select {
 
 #player-container.playing .play-overlay {
   display: none;
+}
+
+@media (max-width: 768px) {
+  .city-title {
+    font-size: 14px;
+    bottom: 16px;
+  }
+  
+  #city-select {
+    padding: 8px 14px;
+    font-size: 13px;
+    top: 16px;
+    right: 16px;
+  }
+  
+  .play-btn {
+    font-size: 16px;
+    padding: 8px 20px;
+  }
 }
