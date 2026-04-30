@@ -50,9 +50,10 @@
     container.appendChild(video);
     currentVideo = video;
 
+    // Оверлей только с кнопкой Play
     const overlay = document.createElement('div');
     overlay.className = 'play-overlay';
-    overlay.innerHTML = '<button class="play-btn">Play</button><span class="play-hint">Click to enable sound</span>';
+    overlay.innerHTML = '<button class="play-btn">Play</button>';
     container.appendChild(overlay);
     
     overlay.querySelector('.play-btn').addEventListener('click', function() {
@@ -66,19 +67,23 @@
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 30,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 30 * 1000 * 1000,
+        enableWorker: false,          // Отключаем воркер (часто лечит рассинхрон A/V)
+        lowLatencyMode: false,        // Отключаем LL-HLS (нестабилен для кэм)
+        liveSyncDuration: 15,         // Держимся в 15 сек от live-края
+        liveMaxLatencyDuration: 30,   // Макс отставание 30 сек
+        maxBufferLength: 12,          // Небольшой буфер для live
+        maxMaxBufferLength: 25,
+        maxBufferSize: 60 * 1000 * 1000,
+        
         manifestLoadingMaxRetry: 4,
         manifestLoadingRetryDelay: 1000,
         levelLoadingMaxRetry: 4,
-        fragLoadingMaxRetry: 6,
+        fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 500,
-        nudgeOffset: 0.1,
+        
+        nudgeOffset: 0.05,
         nudgeMaxRetry: 3,
+        maxBufferHole: 0.3,
         startFragPrefetch: true,
         testBandwidth: false,
         abrEwmaDefaultEstimate: 5000000
@@ -91,10 +96,6 @@
         video.play().catch(function() {
           console.log('Autoplay blocked, waiting for user interaction');
         });
-      });
-      
-      currentHls.on(Hls.Events.AUDIO_TRACK_SWITCHED, function() {
-        console.log('Audio track switched');
       });
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
@@ -111,9 +112,6 @@
               cleanup();
               title.textContent = camera.city + ' — OFFLINE';
           }
-        }
-        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
-          video.currentTime += 0.1;
         }
       });
       
