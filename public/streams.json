@@ -4,7 +4,9 @@
     "city": "Times Square, NYC",
     "source": "hls",
     "sourceParams": {
-      "url": "https://videos3.earthcam.com/fecnetwork/9974.flv/chunklist_w1421640637.m3u8"
+      "url": "https://videos3.earthcam.com/fecnetwork/9974.flv/chunklist_w1421640637.m3u8",
+      "referer": "https://www.earthcam.com/",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     },
     "thumbnail": "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1600&q=80"
   }
