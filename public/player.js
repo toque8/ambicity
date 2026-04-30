@@ -6,6 +6,7 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
+  let audioSyncInterval = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -59,6 +60,7 @@
     });
 
   function cleanup() {
+    if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -123,29 +125,22 @@
         enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        
-        liveSyncDuration: 15,
-        liveMaxLatencyDuration: 30,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        maxBufferSize: 150 * 1000 * 1000,
-        backBufferLength: 25,
-
-        nudgeMaxRetry: 2,
-        nudgeOffset: 0.05,
+        liveSyncDuration: 18,
+        liveMaxLatencyDuration: 35,
+        maxBufferLength: 25,
+        maxMaxBufferLength: 45,
+        maxBufferSize: 200 * 1000 * 1000,
+        backBufferLength: 30,
+        nudgeMaxRetry: 0,
         maxBufferHole: 0.8,
-        maxAudioFramesDrift: 3,
+        maxAudioFramesDrift: 5,
         forceKeyFrameOnDemuxerError: true,
         stretchShortVideoTrack: false,
-        preferManagedMediaSource: false,
-        liveSyncOnStalledError: false,
-
         testBandwidth: false,
         startLevel: 0,
         maxAutoLevel: 0,
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 5000000,
-
         fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 500,
         manifestLoadingMaxRetry: 3,
@@ -154,9 +149,7 @@
 
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
-
       currentHls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>{}));
-
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           switch(data.type) {
@@ -166,6 +159,19 @@
           }
         }
       });
+
+      audioSyncInterval = setInterval(() => {
+        if (!video || video.paused || video.readyState < 3) return;
+        const buf = video.buffered;
+        if (buf.length > 0) {
+          const end = buf.end(0);
+          const drift = end - video.currentTime;
+          if (Math.abs(drift) > 1.2) {
+            video.playbackRate = drift > 0 ? 1.015 : 0.985;
+            setTimeout(() => { video.playbackRate = 1.0; }, 2000);
+          }
+        }
+      }, 3000);
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => video.play().catch(()=>{}));
