@@ -1,3 +1,4 @@
+// public/player.js
 (async function() {
   const select = document.getElementById('city-select');
   const container = document.getElementById('player-container');
@@ -28,21 +29,22 @@
     }
   }
 
-  class HeaderInjectLoader extends Hls.DefaultConfig.loader {
-    constructor(config) {
-      super(config);
-      const load = this.load.bind(this);
-      this.load = function(context, config, callbacks) {
-        if (context.type === 'manifest' || context.type === 'segment') {
-          const originalOnSuccess = callbacks.onSuccess;
-          callbacks.onSuccess = function(response, stats, context) {
-            // Можно логировать, если нужно
-            return originalOnSuccess(response, stats, context);
-          };
+  function createHlsConfig(authHeaders) {
+    return {
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 30,
+      xhrSetup: function(xhr, url) {
+        // Добавляем заголовки к каждому запросу (манифест и сегменты)
+        if (authHeaders?.referer) {
+          xhr.setRequestHeader('Referer', authHeaders.referer);
         }
-        load(context, config, callbacks);
-      };
-    }
+        if (authHeaders?.userAgent) {
+          xhr.setRequestHeader('User-Agent', authHeaders.userAgent);
+        }
+        xhr.setRequestHeader('Origin', authHeaders?.referer?.replace(/\/$/, '') || 'https://www.earthcam.com');
+      }
+    };
   }
 
   async function playCamera(index) {
@@ -55,7 +57,7 @@
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
-    video.setAttribute('muted', ''); 
+    video.setAttribute('muted', ''); // Обязательно для autoplay в браузерах
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
@@ -64,38 +66,31 @@
 
     const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
 
-    const preflight = await fetch(apiUrl, { method: 'HEAD' });
-    const streamHeaders = preflight.headers.get('X-Stream-Headers');
-    const headersConfig = streamHeaders ? JSON.parse(streamHeaders) : {};
+    let authHeaders = null;
+    try {
+      const preflight = await fetch(apiUrl, { method: 'HEAD' });
+      const authHeader = preflight.headers.get('X-Stream-Auth');
+      if (authHeader) {
+        authHeaders = JSON.parse(authHeader);
+      }
+    } catch (e) {
+      console.warn('Could not fetch auth headers, proceeding without:', e);
+    }
 
+    const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
-      currentHls = new Hls({
-        loader: HeaderInjectLoader,
-        xhrSetup: function(xhr, url) {
-          if (headersConfig.referer) {
-            xhr.setRequestHeader('Referer', headersConfig.referer);
-          }
-          if (headersConfig.userAgent) {
-            xhr.setRequestHeader('User-Agent', headersConfig.userAgent);
-          }
-          xhr.setRequestHeader('Origin', headersConfig.referer || 'https://www.earthcam.com');
-        },
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 30
-      });
-
+      currentHls = new Hls(createHlsConfig(authHeaders));
+      
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
       
       currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(e => console.log('Autoplay prevented:', e));
+        video.play().catch(e => console.log('Autoplay blocked:', e));
       });
       
       currentHls.on(Hls.Events.ERROR, (event, data) => {
         if (data.fatal) {
           console.error('HLS fatal error:', data);
-          // Пробуем восстановиться
           switch(data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               currentHls.startLoad();
@@ -111,10 +106,9 @@
       });
       
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS для Safari
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => {
-        video.play().catch(e => console.log('Autoplay prevented:', e));
+        video.play().catch(e => console.log('Autoplay blocked:', e));
       });
     } else {
       title.textContent = `${camera.city} — UNSUPPORTED`;
