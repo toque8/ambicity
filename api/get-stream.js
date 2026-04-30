@@ -1,13 +1,14 @@
+// api/get-stream.js
 export const config = {
   runtime: 'edge',
 };
 
 export default async function handler(req) {
-  const { searchParams } = new URL(req.url);
-  const source = searchParams.get('source');
-  const sourceParams = searchParams.get('sourceParams');
+  const url = new URL(req.url);
+  const source = url.searchParams.get('source');
+  const sourceParamsRaw = url.searchParams.get('sourceParams');
 
-  if (!source || !sourceParams) {
+  if (!source || !sourceParamsRaw) {
     return new Response(JSON.stringify({ error: 'source and sourceParams required' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
@@ -16,7 +17,7 @@ export default async function handler(req) {
 
   let params;
   try {
-    params = JSON.parse(sourceParams);
+    params = JSON.parse(decodeURIComponent(sourceParamsRaw));
   } catch {
     return new Response(JSON.stringify({ error: 'invalid sourceParams JSON' }), {
       status: 400,
@@ -24,8 +25,15 @@ export default async function handler(req) {
     });
   }
 
-  if (source !== 'earthcam-hls' || !params.url) {
-    return new Response(JSON.stringify({ error: 'unsupported source' }), {
+  if (source !== 'hls' && source !== 'earthcam') {
+    return new Response(JSON.stringify({ error: 'unsupported source type' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  if (!params.url) {
+    return new Response(JSON.stringify({ error: 'url required' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }
     });
@@ -34,7 +42,7 @@ export default async function handler(req) {
   try {
     const manifestRes = await fetch(params.url, {
       headers: {
-        'User-Agent': params.userAgent || 'Mozilla/5.0',
+        'User-Agent': params.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': params.referer || 'https://www.earthcam.com/',
         'Origin': 'https://www.earthcam.com'
       }
@@ -54,16 +62,11 @@ export default async function handler(req) {
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Stream-Headers': JSON.stringify({
-          referer: params.referer,
-          userAgent: params.userAgent
+        // Передаём клиенту заголовки, которые нужны для запросов сегментов
+        'X-Stream-Auth': JSON.stringify({
+          referer: params.referer || 'https://www.earthcam.com/',
+          userAgent: params.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
       }
     });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
