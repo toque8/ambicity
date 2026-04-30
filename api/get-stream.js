@@ -1,3 +1,4 @@
+// api/get-stream.js
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -30,7 +31,8 @@ export default async function handler(req) {
     }
 
     const originalUrl = new URL(params.url);
-    const baseUrl = `${originalUrl.protocol}//${originalUrl.hostname}${originalUrl.pathname.substring(0, originalUrl.pathname.lastIndexOf('/') + 1)}`;
+    const baseUrl = originalUrl.origin + originalUrl.pathname.substring(0, originalUrl.pathname.lastIndexOf('/') + 1);
+    const proxyBase = url.origin + '/api/proxy-segment?src=';
 
     const manifestRes = await fetch(params.url, {
       headers: {
@@ -51,21 +53,17 @@ export default async function handler(req) {
     
     manifestText = manifestText.split('\n').map(line => {
       if (line.startsWith('#') || !line.trim()) return line;
-      if (line.startsWith('http://') || line.startsWith('https://')) return line;
-      return baseUrl + line.trim();
+      if (line.startsWith('http://') || line.startsWith('https://')) {
+        return proxyBase + encodeURIComponent(line.trim());
+      }
+      return proxyBase + encodeURIComponent(baseUrl + line.trim());
     }).join('\n');
-
-    const authData = {
-      referer: params.referer || 'https://www.earthcam.com/',
-      userAgent: params.userAgent || 'Mozilla/5.0'
-    };
 
     return new Response(manifestText, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Stream-Auth': JSON.stringify(authData)
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
       }
     });
 
