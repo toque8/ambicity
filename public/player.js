@@ -1,25 +1,27 @@
 // public/player.js
-(async function() {
+(function() {
   const select = document.getElementById('city-select');
   const container = document.getElementById('player-container');
   const title = document.getElementById('city-title');
   let currentHls = null;
   let currentVideo = null;
 
-  const streams = await fetch('/streams.json').then(r => r.json());
-  
-  streams.forEach((camera, index) => {
-    const option = document.createElement('option');
-    option.value = index;
-    option.textContent = camera.city;
-    select.appendChild(option);
-  });
+  let streams = [];
+  fetch('/streams.json')
+    .then(r => r.json())
+    .then(data => {
+      streams = data;
+      streams.forEach((camera, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = camera.city;
+        select.appendChild(option);
+      });
+      if (streams.length > 0) playCamera(0);
+    });
 
   function cleanup() {
-    if (currentHls) {
-      currentHls.destroy();
-      currentHls = null;
-    }
+    if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
       currentVideo.src = '';
@@ -29,24 +31,7 @@
     }
   }
 
-  function createHlsConfig(authHeaders) {
-    return {
-      enableWorker: true,
-      lowLatencyMode: false,
-      backBufferLength: 30,
-      xhrSetup: function(xhr, url) {
-        if (authHeaders?.referer) {
-          xhr.setRequestHeader('Referer', authHeaders.referer);
-        }
-        if (authHeaders?.userAgent) {
-          xhr.setRequestHeader('User-Agent', authHeaders.userAgent);
-        }
-        xhr.setRequestHeader('Origin', authHeaders?.referer?.replace(/\/$/, '') || 'https://www.earthcam.com');
-      }
-    };
-  }
-
-  async function playCamera(index) {
+  function playCamera(index) {
     const camera = streams[index];
     if (!camera) return;
     
@@ -56,7 +41,7 @@
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
-    video.setAttribute('muted', '');
+    video.setAttribute('muted', ''); // Обязательно для autoplay
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
@@ -65,26 +50,29 @@
 
     const apiUrl = '/api/get-stream?source=' + camera.source + '&sourceParams=' + encodeURIComponent(JSON.stringify(camera.sourceParams));
 
-    let authHeaders = null;
-    try {
-      const preflight = await fetch(apiUrl, { method: 'HEAD' });
-      const authHeader = preflight.headers.get('X-Stream-Auth');
-      if (authHeader) {
-        authHeaders = JSON.parse(authHeader);
-      }
-    } catch (e) {
-      console.warn('Auth headers fetch failed:', e);
-    }
-
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
-      currentHls = new Hls(createHlsConfig(authHeaders));
+      currentHls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 30
+      });
       
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
       
       currentHls.on(Hls.Events.MANIFEST_PARSED, function() {
-        video.play().catch(function(e) { console.log('Autoplay blocked:', e); });
+        video.play().catch(function(e) {
+          console.log('Autoplay blocked, waiting for interaction:', e);
+          container.insertAdjacentHTML('beforeend', 
+            '<button id="play-btn" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:12px 24px;font-size:16px;background:#fff;border:none;border-radius:8px;cursor:pointer">▶ Play</button>'
+          );
+          document.getElementById('play-btn').onclick = function() {
+            this.remove();
+            video.muted = false;
+            video.play();
+          };
+        });
       });
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
@@ -111,12 +99,9 @@
       });
     } else {
       title.textContent = camera.city + ' — UNSUPPORTED';
-      console.error('HLS not supported');
     }
   }
 
   select.addEventListener('change', function() { playCamera(select.value); });
-  if (streams.length > 0) playCamera(0);
-  
   window.addEventListener('beforeunload', cleanup);
 })();
