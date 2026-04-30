@@ -12,13 +12,20 @@ export default async function handler(req) {
     const decodedUrl = decodeURIComponent(segmentUrl);
     const referer = new URL(decodedUrl).origin.replace(/\/$/, '') + '/';
     
+    // Таймаут 8 сек на сегмент (хватит с запасом)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
     const segmentRes = await fetch(decodedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': referer,
         'Origin': referer
-      }
+      },
+      signal: controller.signal
     });
+
+    clearTimeout(timeout);
 
     if (!segmentRes.ok) {
       return new Response('Segment unavailable', { status: segmentRes.status });
@@ -26,13 +33,16 @@ export default async function handler(req) {
 
     const contentType = segmentRes.headers.get('Content-Type') || 'video/mp2t';
     
-    return new Response(segmentRes.body, {
+    const buffer = await segmentRes.arrayBuffer();
+    
+    return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'public, max-age=10, stale-while-revalidate=5',
         'Access-Control-Allow-Origin': '*',
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        'Content-Length': buffer.byteLength.toString()
       }
     });
 
