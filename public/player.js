@@ -6,8 +6,9 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
-  let syncLock = null;
-  let audioPreload = null;
+  let audioContext = null;
+  let audioSource = null;
+  let audioGain = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -32,7 +33,7 @@
   function updateControls() {
     if (!currentVideo) return;
     btnPause.innerHTML = currentVideo.paused ? svgPlay : svgPause;
-    btnMute.innerHTML = (currentVideo.muted || currentVideo.volume === 0) ? svgMuteOff : svgMuteOn;
+    btnMute.innerHTML = (currentVideo.muted || (audioGain && audioGain.gain.value === 0)) ? svgMuteOff : svgMuteOn;
   }
 
   btnPause.addEventListener('click', () => {
@@ -43,9 +44,40 @@
 
   btnMute.addEventListener('click', () => {
     if (!currentVideo) return;
-    currentVideo.muted = !currentVideo.muted;
+    toggleMute();
     updateControls();
   });
+
+  function toggleMute() {
+    if (audioGain) {
+      const newVal = audioGain.gain.value === 0 ? 1 : 0;
+      audioGain.gain.setTargetAtTime(newVal, audioContext.currentTime, 0.1);
+    }
+    currentVideo.muted = !currentVideo.muted;
+  }
+
+  function initWebAudio(video) {
+    try {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioSource) audioSource.disconnect();
+      
+      audioSource = audioContext.createMediaElementSource(video);
+      audioGain = audioContext.createGain();
+      audioGain.gain.value = 1;
+      
+      audioSource.connect(audioGain).connect(audioContext.destination);
+      
+      audioGain.gain.setValueAtTime(0, audioContext.currentTime);
+      audioGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 0.3);
+      
+      return true;
+    } catch (e) {
+      console.warn('Web Audio init failed:', e);
+      return false;
+    }
+  }
 
   fetch('/streams.json')
     .then(r => r.json())
@@ -61,8 +93,8 @@
     });
 
   function cleanup() {
-    if (syncLock) { clearInterval(syncLock); syncLock = null; }
-    if (audioPreload) { audioPreload = null; }
+    if (audioSource) { audioSource.disconnect(); audioSource = null; }
+    if (audioGain) { audioGain.disconnect(); audioGain = null; }
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -78,45 +110,6 @@
     updateControls();
   }
 
-  function startSoftSync(video) {
-    if (syncLock) clearInterval(syncLock);
-    syncLock = setInterval(() => {
-      if (!video || video.paused || video.readyState < 3) return;
-      const buf = video.buffered;
-      if (buf.length === 0) return;
-      
-      const end = buf.end(0);
-      const drift = end - video.currentTime;
-      
-      if (Math.abs(drift) > 0.3 && Math.abs(drift) < 2.0) {
-        const rate = drift > 0 ? 1.003 : 0.997;
-        if (Math.abs(video.playbackRate - 1.0) < 0.02) {
-          video.playbackRate = rate;
-          setTimeout(() => { 
-            if (video && !video.paused) video.playbackRate = 1.0; 
-          }, 400);
-        }
-      }
-    }, 200);
-  }
-
-  async function warmAudioBuffer(hls, video, url) {
-    try {
-      await new Promise(resolve => {
-        const onParsed = () => { hls.off(Hls.Events.MANIFEST_PARSED, onParsed); resolve(); };
-        hls.on(Hls.Events.MANIFEST_PARSED, onParsed);
-      });
-      
-      const levels = hls.levels;
-      if (levels && levels[0] && levels[0].details) {
-        const fragments = levels[0].details.fragments.slice(0, 3);
-        for (const frag of fragments) {
-          fetch(frag.url).catch(()=>{}); // Просто греем соединение, не декодируем
-        }
-      }
-    } catch (e) { /* игнорируем, это оптимизация */ }
-  }
-
   function playCamera(index) {
     const camera = streams[index];
     if (!camera) return;
@@ -128,10 +121,11 @@
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
-    video.setAttribute('muted', '');
+    video.setAttribute('muted', ''); 
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
+    video.disableRemotePlayback = true;
     container.appendChild(video);
     currentVideo = video;
 
@@ -140,12 +134,14 @@
     overlay.innerHTML = '<button class="play-btn">Play</button>';
     container.appendChild(overlay);
 
-    overlay.querySelector('.play-btn').addEventListener('click', function() {
-      video.muted = false;
-      video.play().catch(e => console.log('Play error:', e));
-      container.classList.add('playing');
-      this.parentElement.remove();
-      updateControls();
+    overlay.querySelector('.play-btn').addEventListener('click', async function() {
+      if (initWebAudio(video)) {
+        video.muted = true; // Оставляем muted, звук идёт через Web Audio
+        await video.play().catch(e => console.log('Play error:', e));
+        container.classList.add('playing');
+        this.parentElement.remove();
+        updateControls();
+      }
     });
 
     video.addEventListener('play', () => {
@@ -154,10 +150,8 @@
       container.classList.add('playing');
       title.style.opacity = '0';
       updateControls();
-      setTimeout(() => startSoftSync(video), 2000);
     });
     video.addEventListener('pause', updateControls);
-    video.addEventListener('volumechange', updateControls);
 
     const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
 
@@ -176,8 +170,8 @@
         
         nudgeMaxRetry: 0,
         nudgeOffset: 0,
-        maxBufferHole: 1.0,
-        maxAudioFramesDrift: 10,
+        maxBufferHole: 2.0,
+        maxAudioFramesDrift: 20,
         forceKeyFrameOnDemuxerError: false,
         stretchShortVideoTrack: false,
         preferManagedMediaSource: false,
@@ -198,10 +192,7 @@
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
       
-      warmAudioBuffer(currentHls, video, apiUrl);
-      
       currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(()=>{});
       });
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
@@ -217,8 +208,8 @@
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => {
+        initWebAudio(video);
         video.play().catch(()=>{});
-        setTimeout(() => startSoftSync(video), 2000);
       });
     }
   }
