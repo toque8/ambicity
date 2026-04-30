@@ -12,7 +12,6 @@ export default async function handler(req) {
     const decodedUrl = decodeURIComponent(segmentUrl);
     const referer = new URL(decodedUrl).origin.replace(/\/$/, '') + '/';
     
-    // Таймаут 8 сек на сегмент (хватит с запасом)
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -32,14 +31,13 @@ export default async function handler(req) {
     }
 
     const contentType = segmentRes.headers.get('Content-Type') || 'video/mp2t';
-    
     const buffer = await segmentRes.arrayBuffer();
     
     return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=10, stale-while-revalidate=5',
+        'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
         'Access-Control-Allow-Origin': '*',
         'Accept-Ranges': 'bytes',
         'Content-Length': buffer.byteLength.toString()
