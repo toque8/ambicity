@@ -42,3 +42,53 @@ select {
   backdrop-filter: blur(8px);
   border-radius: 4px;
 }
+.play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 10;
+  pointer-events: none; /* Пропускаем клики сквозь контейнер */
+}
+
+.play-btn {
+  pointer-events: auto; /* Кнопка кликабельна */
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: inherit; /* Наследует шрифт от body / city-title */
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  padding: 10px 24px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s ease, transform 0.1s ease;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+}
+
+.play-btn:hover {
+  background: rgba(255,255,255,0.12);
+  transform: scale(1.03);
+}
+
+.play-btn:active {
+  transform: scale(0.98);
+}
+
+.play-hint {
+  color: rgba(255,255,255,0.75);
+  font-size: 13px;
+  font-weight: 400;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+
+#player-container.playing .play-overlay {
+  display: none;
+}
