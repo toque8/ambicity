@@ -66,26 +66,32 @@
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: true,
-        liveDurationInfinity: true,
-        liveSyncDuration: 10,
-        liveMaxLatencyDuration: 20,
-        maxBufferLength: 12,
-        maxMaxBufferLength: 25,
-        maxBufferSize: 60 * 1000 * 1000,
-        manifestLoadingMaxRetry: 3,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 3,
-        fragLoadingMaxRetry: 8,
-        fragLoadingRetryDelay: 500,
-        nudgeOffset: 0.1,
-        nudgeMaxRetry: 3,
-        maxBufferHole: 0.2,
-        startFragPrefetch: true,
+        enableWorker: true,          
+        liveDurationInfinity: true,   
+        liveSyncDuration: 18,        
+        liveMaxLatencyDuration: 35,   
+        maxBufferLength: 20,          
+        maxMaxBufferLength: 40,      
+        maxBufferSize: 120 * 1000 * 1000,
+        
+        nudgeOffset: 0.08,
+        nudgeMaxRetry: 4,
+        maxBufferHole: 1.5,           
+        
+        fragLoadingMaxRetry: 12,
+        fragLoadingRetryDelay: 400,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        
+        // Отключаем агрессивные оптимизации
         lowLatencyMode: false,
         testBandwidth: false,
-        abrEwmaDefaultEstimate: 5000000
+        abrEwmaDefaultEstimate: 5000000,
+        preferManagedMediaSource: false,
+        stretchShortVideoTrack: false
       });
+      
+      currentHls.config.audioTrack = 0;
       
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
@@ -96,16 +102,15 @@
         });
       });
 
-      currentHls.on(Hls.Events.FRAG_BUFFERED, function(event, data) {
-        if (data.type === 'audio' && currentVideo && !currentVideo.paused) {
-          const end = currentVideo.buffered.end(0);
-          const cur = currentVideo.currentTime;
-          if (end - cur > 1.5) {
-            currentVideo.currentTime = end - 1.0;
+      currentHls.on(Hls.Events.LEVEL_SWITCHED, function() {
+        if (video.readyState >= 2) {
+          const bufEnd = video.buffered.length > 0 ? video.buffered.end(0) : 0;
+          if (Math.abs(bufEnd - video.currentTime) > 2) {
+            video.currentTime = Math.max(0, bufEnd - 1.2);
           }
         }
       });
-      
+
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           console.error('HLS fatal error:', data);
@@ -120,6 +125,16 @@
               cleanup();
               title.textContent = camera.city;
           }
+        }
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          setTimeout(() => {
+            if (!video.paused && video.readyState >= 2) {
+              const bufEnd = video.buffered.length > 0 ? video.buffered.end(0) : 0;
+              if (bufEnd > video.currentTime + 1.5) {
+                video.currentTime = bufEnd - 1.0;
+              }
+            }
+          }, 800);
         }
       });
       
