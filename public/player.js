@@ -6,7 +6,7 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
-  let audioDelayTimer = null;
+  let bufferPacer = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -60,7 +60,7 @@
     });
 
   function cleanup() {
-    if (audioDelayTimer) { clearTimeout(audioDelayTimer); audioDelayTimer = null; }
+    if (bufferPacer) { cancelAnimationFrame(bufferPacer); bufferPacer = null; }
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -76,6 +76,22 @@
     updateControls();
   }
 
+  function startBufferPacer(video) {
+    if (bufferPacer) cancelAnimationFrame(bufferPacer);
+    function check() {
+      if (video && !video.paused && video.readyState >= 2 && video.buffered.length > 0) {
+        const bufEnd = video.buffered.end(0);
+        const bufLen = bufEnd - video.currentTime;
+        if (bufLen < 8) {
+          video.pause();
+          setTimeout(() => { if (video && !video.ended) video.play().catch(()=>{}); }, 1200);
+        }
+      }
+      if (video && !video.paused) bufferPacer = requestAnimationFrame(check);
+    }
+    bufferPacer = requestAnimationFrame(check);
+  }
+
   function playCamera(index) {
     const camera = streams[index];
     if (!camera) return;
@@ -88,6 +104,7 @@
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
     video.setAttribute('muted', '');
+    video.setAttribute('preload', 'auto');
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
@@ -102,22 +119,10 @@
     overlay.querySelector('.play-btn').addEventListener('click', function() {
       video.muted = false;
       video.play().catch(e => console.log('Play error:', e));
-      
-      audioDelayTimer = setTimeout(() => {
-        if (video && !video.paused) {
-          // Микро-коррекция: если видео уже ушло вперёд, подтягиваем аудио
-          if (video.buffered.length > 0) {
-            const bufEnd = video.buffered.end(0);
-            if (bufEnd - video.currentTime > 0.2) {
-              video.currentTime = bufEnd - 0.15;
-            }
-          }
-        }
-      }, 150);
-      
       container.classList.add('playing');
       this.parentElement.remove();
       updateControls();
+      setTimeout(() => startBufferPacer(video), 2000);
     });
 
     video.addEventListener('play', () => {
@@ -128,26 +133,27 @@
       updateControls();
     });
     video.addEventListener('pause', updateControls);
+    video.addEventListener('volumechange', updateControls);
 
     const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
 
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: true,
+        enableWorker: false,        
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        liveSyncDuration: 20,
-        liveMaxLatencyDuration: 40,
-        maxBufferLength: 25,
-        maxMaxBufferLength: 45,
-        maxBufferSize: 150 * 1000 * 1000,
-        backBufferLength: 25,
+        liveSyncDuration: 40,       
+        liveMaxLatencyDuration: 60,
+        maxBufferLength: 35,        
+        maxMaxBufferLength: 50,
+        maxBufferSize: 300 * 1000 * 1000,
+        backBufferLength: 40,
         
         nudgeMaxRetry: 0,
         nudgeOffset: 0,
-        maxBufferHole: 1.5,
-        maxAudioFramesDrift: 15,
+        maxBufferHole: 2.5,
+        maxAudioFramesDrift: 20,
         forceKeyFrameOnDemuxerError: false,
         stretchShortVideoTrack: false,
         preferManagedMediaSource: false,
@@ -157,19 +163,18 @@
         startLevel: 0,
         maxAutoLevel: 0,
         capLevelToPlayerSize: false,
-        abrEwmaDefaultEstimate: 5000000,
+        abrEwmaDefaultEstimate: 8000000,
         
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 800,
-        manifestLoadingMaxRetry: 2,
-        levelLoadingMaxRetry: 2
+        fragLoadingMaxRetry: 10,
+        fragLoadingRetryDelay: 600,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3
       });
 
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
       
-      currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
-      });
+      currentHls.on(Hls.Events.MANIFEST_PARSED, () => {});
       
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
@@ -185,6 +190,7 @@
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => {
         video.play().catch(()=>{});
+        setTimeout(() => startBufferPacer(video), 2000);
       });
     }
   }
