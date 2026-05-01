@@ -6,9 +6,7 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
-  let audioContext = null;
-  let audioSource = null;
-  let audioGain = null;
+  let audioDelayTimer = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -33,7 +31,7 @@
   function updateControls() {
     if (!currentVideo) return;
     btnPause.innerHTML = currentVideo.paused ? svgPlay : svgPause;
-    btnMute.innerHTML = (currentVideo.muted || (audioGain && audioGain.gain.value === 0)) ? svgMuteOff : svgMuteOn;
+    btnMute.innerHTML = currentVideo.muted ? svgMuteOff : svgMuteOn;
   }
 
   btnPause.addEventListener('click', () => {
@@ -44,40 +42,9 @@
 
   btnMute.addEventListener('click', () => {
     if (!currentVideo) return;
-    toggleMute();
+    currentVideo.muted = !currentVideo.muted;
     updateControls();
   });
-
-  function toggleMute() {
-    if (audioGain) {
-      const newVal = audioGain.gain.value === 0 ? 1 : 0;
-      audioGain.gain.setTargetAtTime(newVal, audioContext.currentTime, 0.1);
-    }
-    currentVideo.muted = !currentVideo.muted;
-  }
-
-  function initWebAudio(video) {
-    try {
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (audioSource) audioSource.disconnect();
-      
-      audioSource = audioContext.createMediaElementSource(video);
-      audioGain = audioContext.createGain();
-      audioGain.gain.value = 1;
-      
-      audioSource.connect(audioGain).connect(audioContext.destination);
-      
-      audioGain.gain.setValueAtTime(0, audioContext.currentTime);
-      audioGain.gain.linearRampToValueAtTime(1, audioContext.currentTime + 0.3);
-      
-      return true;
-    } catch (e) {
-      console.warn('Web Audio init failed:', e);
-      return false;
-    }
-  }
 
   fetch('/streams.json')
     .then(r => r.json())
@@ -93,8 +60,7 @@
     });
 
   function cleanup() {
-    if (audioSource) { audioSource.disconnect(); audioSource = null; }
-    if (audioGain) { audioGain.disconnect(); audioGain = null; }
+    if (audioDelayTimer) { clearTimeout(audioDelayTimer); audioDelayTimer = null; }
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -121,11 +87,10 @@
     const video = document.createElement('video');
     video.setAttribute('playsinline', '');
     video.setAttribute('autoplay', '');
-    video.setAttribute('muted', ''); 
+    video.setAttribute('muted', '');
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.objectFit = 'cover';
-    video.disableRemotePlayback = true;
     container.appendChild(video);
     currentVideo = video;
 
@@ -134,14 +99,25 @@
     overlay.innerHTML = '<button class="play-btn">Play</button>';
     container.appendChild(overlay);
 
-    overlay.querySelector('.play-btn').addEventListener('click', async function() {
-      if (initWebAudio(video)) {
-        video.muted = true; // Оставляем muted, звук идёт через Web Audio
-        await video.play().catch(e => console.log('Play error:', e));
-        container.classList.add('playing');
-        this.parentElement.remove();
-        updateControls();
-      }
+    overlay.querySelector('.play-btn').addEventListener('click', function() {
+      video.muted = false;
+      video.play().catch(e => console.log('Play error:', e));
+      
+      audioDelayTimer = setTimeout(() => {
+        if (video && !video.paused) {
+          // Микро-коррекция: если видео уже ушло вперёд, подтягиваем аудио
+          if (video.buffered.length > 0) {
+            const bufEnd = video.buffered.end(0);
+            if (bufEnd - video.currentTime > 0.2) {
+              video.currentTime = bufEnd - 0.15;
+            }
+          }
+        }
+      }, 150);
+      
+      container.classList.add('playing');
+      this.parentElement.remove();
+      updateControls();
     });
 
     video.addEventListener('play', () => {
@@ -163,15 +139,15 @@
         liveDurationInfinity: true,
         liveSyncDuration: 20,
         liveMaxLatencyDuration: 40,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 50,
-        maxBufferSize: 200 * 1000 * 1000,
-        backBufferLength: 30,
+        maxBufferLength: 25,
+        maxMaxBufferLength: 45,
+        maxBufferSize: 150 * 1000 * 1000,
+        backBufferLength: 25,
         
         nudgeMaxRetry: 0,
         nudgeOffset: 0,
-        maxBufferHole: 2.0,
-        maxAudioFramesDrift: 20,
+        maxBufferHole: 1.5,
+        maxAudioFramesDrift: 15,
         forceKeyFrameOnDemuxerError: false,
         stretchShortVideoTrack: false,
         preferManagedMediaSource: false,
@@ -208,7 +184,6 @@
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => {
-        initWebAudio(video);
         video.play().catch(()=>{});
       });
     }
