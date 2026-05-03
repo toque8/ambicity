@@ -6,7 +6,9 @@
   let currentHls = null;
   let currentVideo = null;
   let streams = [];
-  let bufferPacer = null;
+  let audioCtx = null;
+  let audioSource = null;
+  let gainNode = null;
 
   const controlsBar = document.createElement('div');
   controlsBar.className = 'bottom-controls';
@@ -23,15 +25,16 @@
   const btnPause = document.getElementById('btn-pause');
   const btnMute = document.getElementById('btn-mute');
 
-  const svgPause = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
-  const svgPlay = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-  const svgMuteOn = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
-  const svgMuteOff = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+  const svgPause = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;rect x=&quot;6&quot; y=&quot;4&quot; width=&quot;4&quot; height=&quot;16&quot;&gt;&lt;/rect&gt;&lt;rect x=&quot;14&quot; y=&quot;4&quot; width=&quot;4&quot; height=&quot;16&quot;&gt;&lt;/rect&gt;&lt;/svg&gt;;
+  const svgPlay = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;5 3 19 12 5 21 5 3&quot;&gt;&lt;/polygon&gt;&lt;/svg&gt;;
+  const svgMuteOn = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;11 5 6 9 2 9 2 15 6 15 11 19 11 5&quot;&gt;&lt;/polygon&gt;&lt;path d=&quot;M19.07 4.93a10 10 0 0 1 0 14.14&quot;&gt;&lt;/path&gt;&lt;path d=&quot;M15.54 8.46a5 5 0 0 1 0 7.07&quot;&gt;&lt;/path&gt;&lt;/svg&gt;;
+  const svgMuteOff = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;11 5 6 9 2 9 2 15 6 15 11 19 11 5&quot;&gt;&lt;/polygon&gt;&lt;line x1=&quot;23&quot; y1=&quot;9&quot; x2=&quot;17&quot; y2=&quot;15&quot;&gt;&lt;/line&gt;&lt;line x1=&quot;17&quot; y1=&quot;9&quot; x2=&quot;23&quot; y2=&quot;15&quot;&gt;&lt;/line&gt;&lt;/svg&gt;;
 
   function updateControls() {
     if (!currentVideo) return;
     btnPause.innerHTML = currentVideo.paused ? svgPlay : svgPause;
-    btnMute.innerHTML = currentVideo.muted ? svgMuteOff : svgMuteOn;
+    const isMuted = gainNode ? gainNode.gain.value === 0 : true;
+    btnMute.innerHTML = isMuted ? svgMuteOff : svgMuteOn;
   }
 
   btnPause.addEventListener('click', () => {
@@ -41,8 +44,9 @@
   });
 
   btnMute.addEventListener('click', () => {
-    if (!currentVideo) return;
-    currentVideo.muted = !currentVideo.muted;
+    if (!gainNode) return;
+    const isMuted = gainNode.gain.value === 0;
+    gainNode.gain.setTargetAtTime(isMuted ? 1.0 : 0, audioCtx.currentTime, 0.05);
     updateControls();
   });
 
@@ -59,8 +63,23 @@
       if (streams.length > 0) playCamera(0);
     });
 
+  function cleanupAudio() {
+    if (audioSource) {
+      try { audioSource.disconnect(); } catch(e) {}
+      audioSource = null;
+    }
+    if (gainNode) {
+      try { gainNode.disconnect(); } catch(e) {}
+      gainNode = null;
+    }
+    if (audioCtx) {
+      try { audioCtx.close(); } catch(e) {}
+      audioCtx = null;
+    }
+  }
+
   function cleanup() {
-    if (bufferPacer) { cancelAnimationFrame(bufferPacer); bufferPacer = null; }
+    cleanupAudio();
     if (currentHls) { currentHls.destroy(); currentHls = null; }
     if (currentVideo) {
       currentVideo.pause();
@@ -76,20 +95,31 @@
     updateControls();
   }
 
-  function startBufferPacer(video) {
-    if (bufferPacer) cancelAnimationFrame(bufferPacer);
-    function check() {
-      if (video && !video.paused && video.readyState >= 2 && video.buffered.length > 0) {
-        const bufEnd = video.buffered.end(0);
-        const bufLen = bufEnd - video.currentTime;
-        if (bufLen < 8) {
-          video.pause();
-          setTimeout(() => { if (video && !video.ended) video.play().catch(()=>{}); }, 1200);
-        }
-      }
-      if (video && !video.paused) bufferPacer = requestAnimationFrame(check);
+  function initAudioShadow(video) {
+    cleanupAudio();
+
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+        latencyHint: 'playback',
+        sampleRate: 48000
+      });
+
+      audioSource = audioCtx.createMediaElementSource(video);
+      gainNode = audioCtx.createGain();
+
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 0.3);
+
+      audioSource.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      video.muted = false;
+      video.volume = 1;
+
+    } catch(e) {
+      console.warn('AudioContext не поддерживается:', e);
+      if (video) video.muted = false;
     }
-    bufferPacer = requestAnimationFrame(check);
   }
 
   function playCamera(index) {
@@ -117,12 +147,11 @@
     container.appendChild(overlay);
 
     overlay.querySelector('.play-btn').addEventListener('click', function() {
-      video.muted = false;
+      initAudioShadow(video);
       video.play().catch(e => console.log('Play error:', e));
       container.classList.add('playing');
       this.parentElement.remove();
       updateControls();
-      setTimeout(() => startBufferPacer(video), 2000);
     });
 
     video.addEventListener('play', () => {
@@ -131,40 +160,58 @@
       container.classList.add('playing');
       title.style.opacity = '0';
       updateControls();
+
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
     });
+
     video.addEventListener('pause', updateControls);
     video.addEventListener('volumechange', updateControls);
 
-    const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
+    video.addEventListener('waiting', () => {
+      if (audioCtx && audioCtx.state === 'running' && gainNode) {
+        gainNode.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.1);
+      }
+    });
+
+    video.addEventListener('canplay', () => {
+      if (gainNode) {
+        gainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.1);
+      }
+    });
+
+    const apiUrl = /api/get-stream?source=${camera.source}&amp;sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))};
 
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
       currentHls = new Hls({
-        enableWorker: false,        
+        enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        liveSyncDuration: 40,       
-        liveMaxLatencyDuration: 60,
-        maxBufferLength: 35,        
-        maxMaxBufferLength: 50,
-        maxBufferSize: 300 * 1000 * 1000,
-        backBufferLength: 40,
-        
-        nudgeMaxRetry: 0,
-        nudgeOffset: 0,
-        maxBufferHole: 2.5,
-        maxAudioFramesDrift: 20,
-        forceKeyFrameOnDemuxerError: false,
-        stretchShortVideoTrack: false,
-        preferManagedMediaSource: false,
-        liveSyncOnStalledError: false,
-        
+
+        liveSyncDuration: 10,
+        liveMaxLatencyDuration: 20,
+
+        maxBufferLength: 20,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 150 * 1000 * 1000,
+        backBufferLength: 15,
+
+        nudgeMaxRetry: 5,
+        nudgeOffset: 0.2,
+        maxBufferHole: 1.0,
+
+        maxAudioFramesDrift: 3,
+        forceKeyFrameOnDemuxerError: true,
+        stretchShortVideoTrack: true,
+
         testBandwidth: false,
         startLevel: 0,
         maxAutoLevel: 0,
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 8000000,
-        
+
         fragLoadingMaxRetry: 10,
         fragLoadingRetryDelay: 600,
         manifestLoadingMaxRetry: 3,
@@ -173,9 +220,7 @@
 
       currentHls.loadSource(apiUrl);
       currentHls.attachMedia(video);
-      
-      currentHls.on(Hls.Events.MANIFEST_PARSED, () => {});
-      
+
       currentHls.on(Hls.Events.ERROR, function(event, data) {
         if (data.fatal) {
           switch(data.type) {
@@ -185,12 +230,11 @@
           }
         }
       });
-      
+
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = apiUrl;
       video.addEventListener('loadedmetadata', () => {
         video.play().catch(()=>{});
-        setTimeout(() => startBufferPacer(video), 2000);
       });
     }
   }
