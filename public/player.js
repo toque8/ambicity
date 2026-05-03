@@ -25,10 +25,10 @@
   const btnPause = document.getElementById('btn-pause');
   const btnMute = document.getElementById('btn-mute');
 
-  const svgPause = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;rect x=&quot;6&quot; y=&quot;4&quot; width=&quot;4&quot; height=&quot;16&quot;&gt;&lt;/rect&gt;&lt;rect x=&quot;14&quot; y=&quot;4&quot; width=&quot;4&quot; height=&quot;16&quot;&gt;&lt;/rect&gt;&lt;/svg&gt;;
-  const svgPlay = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;5 3 19 12 5 21 5 3&quot;&gt;&lt;/polygon&gt;&lt;/svg&gt;;
-  const svgMuteOn = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;11 5 6 9 2 9 2 15 6 15 11 19 11 5&quot;&gt;&lt;/polygon&gt;&lt;path d=&quot;M19.07 4.93a10 10 0 0 1 0 14.14&quot;&gt;&lt;/path&gt;&lt;path d=&quot;M15.54 8.46a5 5 0 0 1 0 7.07&quot;&gt;&lt;/path&gt;&lt;/svg&gt;;
-  const svgMuteOff = &lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;polygon points=&quot;11 5 6 9 2 9 2 15 6 15 11 19 11 5&quot;&gt;&lt;/polygon&gt;&lt;line x1=&quot;23&quot; y1=&quot;9&quot; x2=&quot;17&quot; y2=&quot;15&quot;&gt;&lt;/line&gt;&lt;line x1=&quot;17&quot; y1=&quot;9&quot; x2=&quot;23&quot; y2=&quot;15&quot;&gt;&lt;/line&gt;&lt;/svg&gt;;
+  const svgPause = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+  const svgPlay = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+  const svgMuteOn = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+  const svgMuteOff = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
   function updateControls() {
     if (!currentVideo) return;
@@ -181,7 +181,7 @@
       }
     });
 
-    const apiUrl = /api/get-stream?source=${camera.source}&amp;sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))};
+    const apiUrl = `/api/get-stream?source=${camera.source}&sourceParams=${encodeURIComponent(JSON.stringify(camera.sourceParams))}`;
 
     const Hls = window.Hls;
     if (Hls && Hls.isSupported()) {
